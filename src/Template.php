@@ -20,8 +20,8 @@ class Template {
         'compileBlocks',
         'compileBlockConditionals',
         'compileYields',
-        'compileEchoes',
         'compileEscapedEchoes',
+        'compileEchoes',
         'compilePHP',
         'compileIf',
         'compileElse',
@@ -107,9 +107,21 @@ class Template {
     
     protected function compileYields($template) { return $template; }
     
-    protected function compileEchoes($template) { return $template; }
+    /**
+     * Сырой вывод: {!! $var !!} -> <?php echo $var; ?>
+     */
+    protected function compileEchoes($template)
+    {
+        return preg_replace('/\{!!\s*(.+?)\s*!!\}/is', '<?php echo $1; ?>', $template);
+    }
     
-    protected function compileEscapedEchoes($template) { return $template; }
+    /**
+     * Безопасный вывод: {{ $var }} -> <?php echo htmlspecialchars(...); ?>
+     */
+    protected function compileEscapedEchoes($template)
+    {
+        return preg_replace('/\{\{\s*(.+?)\s*\}\}/is', '<?php echo htmlspecialchars($1, ENT_QUOTES, "UTF-8"); ?>', $template);
+    }
     
     protected function compilePHP($template) { return $template; }
     
