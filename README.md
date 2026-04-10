@@ -1,4 +1,5 @@
 # 🚀 RunzyTemplate
+![Tests](https://github.com)
 
 [Читать на русском](README_RU.md)
 
