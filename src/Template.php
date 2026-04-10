@@ -27,6 +27,9 @@ class Template {
     /** @var callable|null Функция для получения CSRF-токена */
     private $csrfProvider;
 
+    /** @var array Пользовательские директивы */
+    private $customDirectives = [];
+
     /**
      * Список методов для обработки синтаксиса шаблона
      */
@@ -36,18 +39,19 @@ class Template {
         'compileBlocks',            // 3. Собираем контент блоков
         'compileBlockConditionals', // 4. Проверяем наличие блоков
         'compileYields',            // 5. Вставляем блоки в макет
-        'compilePHP',               // 6. Чистый PHP
-        'compileCsrf',              // 7. Поддержка @csrf директив/токенов
-        'compileAuth',              // 8. Это пользователь
-        'compileGuest',             // 9. Это гость
-        'compileIf',                // 10. Логика (If/Else)
+        'compileCustomDirectives',  // 6. Вставляем блоки в макет
+        'compilePHP',               // 7. Чистый PHP
+        'compileCsrf',              // 8. Поддержка @csrf директив/токенов
+        'compileAuth',              // 9. Это пользователь
+        'compileGuest',             // 10. Это гость
+        'compileIf',                // 11. Логика (If/Else)
         'compileElseIf',
         'compileElse',
         'compileEndIf',             // 
-        'compileForeach',           // 11. Циклы
-        'compileForelse',           // 12. Цикл @forelse
-        'compileEchoes',            // 13. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
-        'compileEscapedEchoes'      // 14. Безопасный вывод {{ }} (Потом общий синтаксис)
+        'compileForeach',           // 12. Циклы
+        'compileForelse',           // 13. Цикл @forelse
+        'compileEchoes',            // 14. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
+        'compileEscapedEchoes'      // 15. Безопасный вывод {{ }} (Потом общий синтаксис)
     ];
 
     /**
@@ -397,4 +401,32 @@ class Template {
         return preg_replace('/\{\{--\s*(.+?)\s*--\}\}/is', '', $template);
     }
 
+    /**
+     * Регистрирует новую кастомную директиву.
+     * 
+     * @param string $name Название директивы (без @)
+     * @param callable $handler Функция, принимающая выражение и возвращающая PHP-код
+     * @return $this
+     */
+    public function directive(string $name, callable $handler)
+    {
+        $this->customDirectives[$name] = $handler;
+        return $this;
+    }
+    
+    /**
+     * Компилирует пользовательские директивы.
+     */
+    protected function compileCustomDirectives($template)
+    {
+        foreach ($this->customDirectives as $name => $handler) {
+            // Регулярка ищет @название(...)
+            $template = preg_replace_callback('/@'.$name.'\s*\((.*?)\)/is', function ($matches) use ($handler) {
+                // Передаем содержимое скобок в обработчик пользователя
+                return $handler($matches[1]);
+            }, $template);
+        }
+
+        return $template;
+    }
 }
