@@ -2,7 +2,7 @@
 
 [Читать на русском](README_RU.md)
 
-RunzyTemplate is an extremely lightweight, fast, Standalone, and extensible PHP 7.1+ templating engine inspired by Laravel Blade syntax.
+RunzyTemplate is an extremely lightweight (18 kB), fast, Standalone, and extensible PHP 7.1+ templating engine inspired by Laravel Blade syntax.
 
 ## ✨ Features
 
@@ -159,6 +159,7 @@ When you need to execute raw logic, use the `@php` directive. This keeps your te
 ```
 
 ### Built-in CSRF Protection
+
 Protect your application from Cross-Site Request Forgery attacks with a single directive. It automatically generates a secure token and injects a hidden input into your forms.
 ```html
 <form action="/update" method="POST">
@@ -167,3 +168,157 @@ Protect your application from Cross-Site Request Forgery attacks with a single d
     <button type="submit">Save Changes</button>
 </form>
 ```
+
+Server-side validation (Example):
+```php
+if ($_POST['_token'] !== $_SESSION['_token']) {
+    die('CSRF token mismatch!');
+}
+```
+
+### Authentication & Guest Directives
+
+Easily toggle the visibility of UI elements based on the user's authentication status. By default, it checks `$_SESSION['user']`, but you can fully customize this logic.
+
+Template:
+```html
+@auth
+    <p>Welcome back, {{ $user->name }}!</p>
+    <a href="/logout">Logout</a>
+@endauth
+
+@guest
+    <p>Hello, stranger! Please sign in.</p>
+    <a href="/login">Login</a>
+@guest
+```
+
+Customizing Logic (PHP):
+```php
+// Optional: Define your own authentication check
+$runzy->setAuthChecker(function() {
+    return isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
+});
+```
+
+### Conditional Logic (@if, @elseif, @else)
+
+Control your template flow with clean, readable directives. No more nested brackets or messy PHP tags. It supports any valid PHP expression inside the conditions.
+
+Template:
+```html
+@if($user->role === 'admin')
+    <div class="badge-admin">Administrator</div>
+@elseif($user->role === 'editor')
+    <div class="badge-editor">Editor</div>
+@else
+    <div class="badge-user">Standard User</div>
+@endif
+```
+
+PHP Logic (behind the scenes):
+The engine converts these into high-performance alternative PHP syntax:
+```php
+<?php if($user->role === 'admin'): ?>
+    <div class="badge-admin">Administrator</div>
+<?php elseif($user->role === 'editor'): ?>
+    ...
+<?php endif; ?>
+```
+
+### Advanced Loops (@foreach, @forelse)
+Iterate through data with ease. Use `@foreach` for standard loops or the powerful `@forelse` to handle empty states without extra `if` statements.
+
+Standard Loop:
+```html
+@foreach($users as $user)
+    <li>{{ $user->name }}</li>
+@endforeach
+```
+
+Loop with Empty State (@forelse):
+This directive checks if the collection is empty and displays the @empty block automatically.
+```html
+<ul>
+    @forelse($news as $article)
+        <li>{{ $article->title }}</li>
+    @empty
+        <li>No news available at the moment.</li>
+    @endforelse
+</ul>
+```
+
+PHP Data Example:
+```php
+echo $runzy->render('news_list', [
+    'news' => $database->getLatestArticles() // Works with arrays or objects
+]);
+```
+
+### Asset Management (@stack, @push)
+The perfect way to manage JavaScript and CSS dependencies. Define a placeholder in your main layout and "push" content into it from any nested child view or partial.
+
+Base Layout (`layout.php`):
+```html
+  <html>
+  <body>
+      @yield('content')
+
+      <!-- Placeholder for scripts -->
+      @stack('scripts')
+  </body>
+  </html>
+```
+
+Child View:
+You can push multiple scripts into the same stack from different files.
+```html
+@extends('layout')
+
+@block('content')
+    <h1>Dashboard</h1>
+@endblock
+
+@push('scripts')
+    <script src="https://cdn.com"></script>
+    <script src="/js/dashboard-charts.js"></script>
+@endpush
+```
+
+Advanced Usage:
+Use @prepend to add content to the beginning of the stack (useful for high-priority libraries).
+```html
+@prepend('scripts')
+    <script src="/js/jquery.min.js"></script>
+@endprepend
+```
+
+### Custom Directives (Extensibility)
+Extend the engine with your own syntax in just one line. Use the `directive()` method to create custom aliases that compile into reusable PHP code.
+
+Registering a Directive (PHP):
+```php
+  // Custom date formatter directive
+  $runzy->directive('datetime', function($expression) {
+      return "<?php echo date($expression); ?>";
+  });
+
+  // Custom YouTube embed directive
+  $runzy->directive('youtube', function($id) {
+      return '<iframe src="https://youtube.com' . $id . '"></iframe>';
+  });
+```
+
+Using in Templates:
+```html
+<div class="meta">
+    Published on: @datetime('d.m.Y', $post->created_at)
+</div>
+
+<div class="video">
+    @youtube($post->video_id)
+</div>
+```
+
+Why it's cool:
+It keeps your views clean and allows you to abstract complex HTML or PHP logic into simple, readable tags.
