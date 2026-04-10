@@ -100,7 +100,24 @@ class Template {
         return $template;
     }
 
-    protected function compileIncludes($template) { return $template; }
+    /**
+     * Компилирует @include('имя.файла')
+     * Рекурсивно подтягивает содержимое других шаблонов
+     */
+    protected function compileIncludes($template)
+    {
+        return preg_replace_callback('/@include\s*\(\s*\'(.*?)\'\s*\)/i', function ($matches) {
+            $path = $this->templateDir . str_replace('.', '/', $matches[1]) . '.php';
+
+            if (!file_exists($path)) {
+                return "<!-- RunzyTemplate Error: Include '$matches[1]' not found -->";
+            }
+
+            // Читаем содержимое и рекурсивно прогоняем через этот же метод
+            $includedContent = file_get_contents($path);
+            return $this->compileIncludes($includedContent);
+        }, $template);
+    }
     
     protected function compileBlocks($template) { return $template; }
     
