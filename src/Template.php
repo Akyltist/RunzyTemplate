@@ -64,38 +64,38 @@ class Template {
     {
         // 1. Сбрасываем макет перед каждым рендерингом, чтобы старые вызовы не влияли на новые
         $this->layout = null;
-    
+
         // 2. Формируем путь к файлу шаблона
         $viewPath = $this->templateDir . str_replace('.', '/', $view) . '.php';
-    
+
         if (!file_exists($viewPath)) {
             throw new \Exception("Шаблон не найден: {$viewPath}");
         }
-    
+
         // 3. Компилируем основной шаблон (в процессе сработает compileExtends и заполнит $this->layout)
         $compiledContent = $this->compile(file_get_contents($viewPath));
-    
+
         // 4. Сохраняем скомпилированный код во временный (или кеш) файл для исполнения
         $cacheFile = $this->cacheDir . md5($view) . '.php';
         file_put_contents($cacheFile, $compiledContent);
-    
+
         // 5. Рендерим дочерний шаблон. В процессе выполнения заполнятся блоки $this->blocks
         ob_start();
         extract($data, EXTR_SKIP);
         require $cacheFile;
         $content = ob_get_clean();
-    
+
         // 6. Если в шаблоне была директива @extends, то $this->layout теперь не пуст
         if ($this->layout) {
             // Запоминаем имя макета и очищаем свойство, чтобы избежать рекурсии
             $layoutName = $this->layout;
             $this->layout = null;
-    
+
             // Рекурсивно рендерим макет. 
             // Внутри макета сработают @yield, которые вытянут данные из $this->blocks
             return $this->render($layoutName, $data);
         }
-    
+
         // 7. Если наследования нет, просто возвращаем контент
         return $content;
     }
@@ -177,13 +177,28 @@ class Template {
     {
         return preg_replace('/\{!!\s*(.+?)\s*!!\}/is', '<?php echo $1; ?>', $template);
     }
+
+    /**
+     * Экранирует данные для безопасного вывода в HTML.
+     * 
+     * @param mixed $value
+     * @return string
+     */
+    public function e($value): string
+    {
+        return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+    }
     
     /**
-     * Безопасный вывод: {{ $var }} -> <?php echo htmlspecialchars(...); ?>
+     * Безопасный вывод: {{ $var }} -> <?php echo $this->e($var); ?>
      */
     protected function compileEscapedEchoes($template)
     {
-        return preg_replace('/\{\{\s*(.+?)\s*\}\}/is', '<?php echo htmlspecialchars($1, ENT_QUOTES, "UTF-8"); ?>', $template);
+        return preg_replace(
+            '/\{\{\s*(.+?)\s*\}\}/is', 
+            '<?php echo $this->e($1); ?>', 
+            $template
+        );
     }
     
     /**
