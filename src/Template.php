@@ -19,19 +19,19 @@ class Template {
      * Список методов для обработки синтаксиса шаблона
      */
     private $compilers = [
-        'compileComments',
-        'compileIncludes',
-        'compileBlocks',
-        'compileBlockConditionals',
-        'compileYields',
-        'compileEscapedEchoes',
-        'compileEchoes',
-        'compilePHP',
-        'compileIf',
+        'compileComments',          // 1. Удаляем лишнее сразу
+        'compileIncludes',          // 2. Собираем файлы в один (рекурсия)
+        'compileBlocks',            // 3. Собираем контент блоков
+        'compileBlockConditionals', // 4. Проверяем наличие блоков
+        'compileYields',            // 5. Вставляем блоки в макет
+        'compilePHP',               // 6. Чистый PHP
+        'compileIf',                // 7. Логика (If/Else)
         'compileElseIf',
         'compileElse',
-        'compileEndIf',
-        'compileForeach'
+        'compileEndIf',             // 
+        'compileForeach',           // 8. Циклы
+        'compileEchoes',            // 9. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
+        'compileEscapedEchoes'      // 10. Безопасный вывод {{ }} (Потом общий синтаксис)
     ];
 
     /**
@@ -130,7 +130,14 @@ class Template {
         return preg_replace('/@block\s*\(\s*\'(.*?)\'\s*\)(.*?)@endblock/is', '<?php $this->blocks[\'$1\'] = \'$2\'; ?>', $template);
     }
     
-    protected function compileBlockConditionals($template) { return $template; }
+    /**
+     * Компилирует проверку существования блока: @hasblock('name') ... @endhasblock
+     */
+    protected function compileBlockConditionals($template)
+    {
+        $template = preg_replace('/@hasblock\s*\(\s*\'(.*?)\'\s*\)/i', '<?php if(isset($this->blocks[\'$1\'])): ?>', $template);
+        return preg_replace('/@endhasblock/i', '<?php endif; ?>', $template);
+    }
     
     /**
      * Компилирует места вставки: @yield('name')
