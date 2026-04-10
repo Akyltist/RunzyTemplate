@@ -12,6 +12,9 @@ RunzyTemplate is an extremely lightweight (18 kB), fast, Standalone, and extensi
 - **Blade-Inspired Syntax**  
   Write clean and expressive code using familiar directives like `@if`, `@foreach`, `@auth`, and `@forelse`. No more messy `<?php ?>` tags in your HTML.
 
+- **AI-Friendly Design**  
+  The engine uses a predictable, standardized syntax that is easily understood by LLMs (ChatGPT, Claude). Includes a ready-to-use prompt context for faster AI-assisted development.
+
 - **Powerful Template Inheritance**  
   Organize your UI with a robust layout system. Use `@extends` to define your base structure, `@block` to fill it, and `@yield` to display content.
 
@@ -139,13 +142,13 @@ echo $runzy->render('welcome', [
 ## Syntax Highlights
 
 ### Smart Comments
-
 Use special comment tags that are completely stripped out during compilation. Unlike standard HTML comments, these will never be visible in the browser's "View Source".
 
 ```html
 {{-- This is a private note for developers and won't appear in HTML --}}
 <p>This content is public.</p>
 ```
+
 
 ### Embedded PHP Blocks
 When you need to execute raw logic, use the `@php` directive. This keeps your templates clean while allowing full access to PHP power when necessary.
@@ -158,8 +161,8 @@ When you need to execute raw logic, use the `@php` directive. This keeps your te
 <span class="status-{{ $labelClass }}">{{ $status }}</span>
 ```
 
-### Built-in CSRF Protection
 
+### Built-in CSRF Protection
 Protect your application from Cross-Site Request Forgery attacks with a single directive. It automatically generates a secure token and injects a hidden input into your forms.
 ```html
 <form action="/update" method="POST">
@@ -176,8 +179,8 @@ if ($_POST['_token'] !== $_SESSION['_token']) {
 }
 ```
 
-### Authentication & Guest Directives
 
+### Authentication & Guest Directives
 Easily toggle the visibility of UI elements based on the user's authentication status. By default, it checks `$_SESSION['user']`, but you can fully customize this logic.
 
 Template:
@@ -201,8 +204,8 @@ $runzy->setAuthChecker(function() {
 });
 ```
 
-### Conditional Logic (@if, @elseif, @else)
 
+### Conditional Logic (@if, @elseif, @else)
 Control your template flow with clean, readable directives. No more nested brackets or messy PHP tags. It supports any valid PHP expression inside the conditions.
 
 Template:
@@ -225,6 +228,7 @@ The engine converts these into high-performance alternative PHP syntax:
     ...
 <?php endif; ?>
 ```
+
 
 ### Advanced Loops (@foreach, @forelse)
 Iterate through data with ease. Use `@foreach` for standard loops or the powerful `@forelse` to handle empty states without extra `if` statements.
@@ -254,6 +258,7 @@ echo $runzy->render('news_list', [
     'news' => $database->getLatestArticles() // Works with arrays or objects
 ]);
 ```
+
 
 ### Asset Management (@stack, @push)
 The perfect way to manage JavaScript and CSS dependencies. Define a placeholder in your main layout and "push" content into it from any nested child view or partial.
@@ -293,6 +298,7 @@ Use @prepend to add content to the beginning of the stack (useful for high-prior
 @endprepend
 ```
 
+
 ### Custom Directives (Extensibility)
 Extend the engine with your own syntax in just one line. Use the `directive()` method to create custom aliases that compile into reusable PHP code.
 
@@ -322,3 +328,22 @@ Using in Templates:
 
 Why it's cool:
 It keeps your views clean and allows you to abstract complex HTML or PHP logic into simple, readable tags.
+
+
+## 🤖 AI Context & Prompting
+
+If you are using AI (ChatGPT, Claude, etc.) to help you write templates or extend this engine, you can provide the following context to help it understand **RunzyTemplate** without sharing the entire source code.
+
+### Reference Prompt
+
+> I am using **RunzyTemplate**, a lightweight PHP template engine. Please follow these rules:
+> - **Syntax**: Blade-like directives.
+> - **Variables**: `{{ $var }}` (escaped), `{!! $var !!}` (raw), `{{-- comment --}}`.
+> - **Control Structures**: `@if`, `@elseif`, `@else`, `@endif`, `@foreach`, `@endforeach`.
+> - **Empty States**: `@forelse($a as $b)`, `@empty`, `@endforelse`.
+> - **Layout System**: `@extends('name')`, `@yield('name')`, `@block('name')/@endblock`, `@hasblock('name')`.
+> - **Partials**: `@include('name')`.
+> - **Asset Stacks**: `@push('name')/@endpush`, `@prepend('name')/@endprepend`, `@stack('name')`.
+> - **Security & Auth**: `@csrf` (inserts hidden input), `@auth`, `@guest`.
+> - **Customization**: Use `@php ... @endphp` for raw code and `$engine->directive(name, callback)` for custom aliases.
+> Please generate code or templates strictly according to this API.
