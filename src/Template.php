@@ -15,6 +15,9 @@ class Template {
     /** @var array Хранилище содержимого блоков */
     private $blocks = [];
 
+    /** @var string|null Имя родительского макета */
+    private $layout;
+
     /**
      * Список методов для обработки синтаксиса шаблона
      */
@@ -59,36 +62,42 @@ class Template {
      */
     public function render(string $view, array $data = []): string
     {
+        // 1. Сбрасываем макет перед каждым рендерингом, чтобы старые вызовы не влияли на новые
+        $this->layout = null;
+    
+        // 2. Формируем путь к файлу шаблона
         $viewPath = $this->templateDir . str_replace('.', '/', $view) . '.php';
-
+    
         if (!file_exists($viewPath)) {
             throw new \Exception("Шаблон не найден: {$viewPath}");
         }
-
-        // Путь к скомпилированному файлу в кеше
+    
+        // 3. Компилируем основной шаблон (в процессе сработает compileExtends и заполнит $this->layout)
+        $compiledContent = $this->compile(file_get_contents($viewPath));
+    
+        // 4. Сохраняем скомпилированный код во временный (или кеш) файл для исполнения
         $cacheFile = $this->cacheDir . md5($view) . '.php';
-
-        // Логика компиляции: если кеш выключен или устарел
-        if (!$this->cacheEnabled || !file_exists($cacheFile) || filemtime($viewPath) > filemtime($cacheFile)) {
-            $content = file_get_contents($viewPath);
-            $compiledContent = $this->compile($content);
-            
-            if (!file_put_contents($cacheFile, $compiledContent)) {
-                throw new \Exception("Не удалось записать файл кеша: {$cacheFile}");
-            }
-        }
-
-        // Рендеринг в песочнице
+        file_put_contents($cacheFile, $compiledContent);
+    
+        // 5. Рендерим дочерний шаблон. В процессе выполнения заполнятся блоки $this->blocks
         ob_start();
-        try {
-            extract($data, EXTR_SKIP);
-            require $cacheFile;
-        } catch (\Throwable $e) {
-            ob_end_clean();
-            throw $e;
+        extract($data, EXTR_SKIP);
+        require $cacheFile;
+        $content = ob_get_clean();
+    
+        // 6. Если в шаблоне была директива @extends, то $this->layout теперь не пуст
+        if ($this->layout) {
+            // Запоминаем имя макета и очищаем свойство, чтобы избежать рекурсии
+            $layoutName = $this->layout;
+            $this->layout = null;
+    
+            // Рекурсивно рендерим макет. 
+            // Внутри макета сработают @yield, которые вытянут данные из $this->blocks
+            return $this->render($layoutName, $data);
         }
-
-        return ob_get_clean();
+    
+        // 7. Если наследования нет, просто возвращаем контент
+        return $content;
     }
 
     /**
@@ -101,6 +110,20 @@ class Template {
         }
 
         return $template;
+    }
+
+    /**
+     * Определяет родительский макет: @extends('layout')
+     */
+    protected function compileExtends($template)
+    {
+        // Ищем @extends и сохраняем имя макета в свойство класса
+        if (preg_match('/@extends\s*\(\s*\'(.*?)\'\s*\)/i', $template, $matches)) {
+            $this->layout = $matches[1];
+        }
+
+        // Удаляем директиву из текста
+        return preg_replace('/@extends\s*\(\s*\'(.*?)\'\s*\)/i', '', $template);
     }
 
     /**
