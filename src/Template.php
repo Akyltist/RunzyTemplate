@@ -16,6 +16,7 @@ class Template {
      * Список методов для обработки синтаксиса шаблона
      */
     private $compilers = [
+        'compileComments',
         'compileIncludes',
         'compileBlocks',
         'compileBlockConditionals',
@@ -24,10 +25,10 @@ class Template {
         'compileEchoes',
         'compilePHP',
         'compileIf',
-        'compileElse',
         'compileElseIf',
-        'compileForeach',
-        'compileComments'
+        'compileElse',
+        'compileEndIf',
+        'compileForeach'
     ];
 
     /**
@@ -125,14 +126,46 @@ class Template {
     
     protected function compilePHP($template) { return $template; }
     
-    protected function compileIf($template) { return $template; }
-    
-    protected function compileElse($template) { return $template; }
-    
-    protected function compileElseIf($template) { return $template; }
+    /**
+     * Компилирует @if(...)
+     */
+    protected function compileIf($template)
+    {
+        return preg_replace('/@if\s*\((.*)\)/i', '<?php if($1): ?>', $template);
+    }
+
+    /**
+     * Компилирует @elseif(...)
+     */
+    protected function compileElseIf($template)
+    {
+        return preg_replace('/@elseif\s*\((.*)\)/i', '<?php elseif($1): ?>', $template);
+    }
+
+    /**
+     * Компилирует @else
+     */
+    protected function compileElse($template)
+    {
+        return preg_replace('/@else/i', '<?php else: ?>', $template);
+    }
+
+    /**
+     * Компилирует @endif. 
+     */
+    protected function compileEndIf($template)
+    {
+        return preg_replace('/@endif/i', '<?php endif; ?>', $template);
+    }
     
     protected function compileForeach($template) { return $template; }
     
-    protected function compileComments($template) { return $template; }
+    /**
+     * Компилирует комментарии: {{-- текст --}} -> удаляет их из вывода
+     */
+    protected function compileComments($template)
+    {
+        return preg_replace('/\{\{--\s*(.+?)\s*--\}\}/is', '', $template);
+    }
 
 }
