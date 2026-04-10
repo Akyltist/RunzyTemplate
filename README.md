@@ -313,6 +313,11 @@ Registering a Directive (PHP):
   $runzy->directive('youtube', function($id) {
       return '<iframe src="https://youtube.com' . $id . '"></iframe>';
   });
+
+  // Custom var dump directive
+  $runzy->directive('dump', function($expression) {
+    return "<?php var_dump($expression); ?>";
+});
 ```
 
 Using in Templates:
@@ -324,6 +329,10 @@ Using in Templates:
 <div class="video">
     @youtube($post->video_id)
 </div>
+
+<pre>
+    @dump($user)
+</pre>
 ```
 
 Why it's cool:

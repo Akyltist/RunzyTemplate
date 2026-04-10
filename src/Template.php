@@ -33,31 +33,30 @@ class Template {
     /** @var array Хранилище для стеков (скрипты, стили и т.д.) */
     private $stacks = [];
 
-    /**
-     * Список методов для обработки синтаксиса шаблона
-     */
+    /** @var array Порядок выполнения компиляторов (Pipeline) */
     private $compilers = [
-        'compileComments',          // 1. Удаляем лишнее сразу
-        'compileIncludes',          // 2. Собираем файлы в один (рекурсия)
-        'compileBlocks',            // 3. Собираем контент блоков
-        'compileStacks',            // 4. Вставка стека (CSS или Js)
-        'compilePush',              // 5. Наполнение стека
-        'compilePrepend',           // 6. Добавляет в начало стека
-        'compileBlockConditionals', // 7. Проверяем наличие блоков
-        'compileYields',            // 8. Вставляем блоки в макет
-        'compileCustomDirectives',  // 9. Вставляем блоки в макет
-        'compilePHP',               // 10. Чистый PHP
-        'compileCsrf',              // 11. Поддержка @csrf директив/токенов
-        'compileAuth',              // 12. Это пользователь
-        'compileGuest',             // 13. Это гость
-        'compileIf',                // 14. Логика (If/Else)
-        'compileElseIf',
-        'compileElse',
-        'compileEndIf',             // 
-        'compileForeach',           // 15. Циклы
-        'compileForelse',           // 16. Цикл @forelse
-        'compileEchoes',            // 17. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
-        'compileEscapedEchoes'      // 18. Безопасный вывод {{ }} (Потом общий синтаксис)
+        'compileComments',          // 1.  Удаление комментариев {{-- --}} (чтобы не обрабатывать скрытый код)
+        'compileIncludes',          // 2.  Рекурсивное включение файлов @include
+        'compileExtends',           // 3.  Определение родительского макета @extends
+        'compileBlocks',            // 4.  Сбор контента блоков @block
+        'compileBlockConditionals', // 5.  Проверка наличия контента в блоках @hasblock
+        'compileYields',            // 6.  Определение мест вставки контента @yield
+        'compileStacks',            // 7.  Определение мест вывода стеков @stack
+        'compilePush',              // 8.  Наполнение стеков контентом @push
+        'compilePrepend',           // 9.  Добавление контента в начало стеков @prepend
+        'compileCustomDirectives',  // 10. Обработка пользовательских алиасов/директив
+        'compilePHP',               // 11. Обработка блоков чистого PHP @php
+        'compileCsrf',              // 12. Генерация и вставка CSRF-защиты @csrf
+        'compileAuth',              // 13. Условие для авторизованных пользователей @auth
+        'compileGuest',             // 14. Условие для гостей @guest
+        'compileIf',                // 15. Управляющая конструкция @if
+        'compileElseIf',            // 16. Управляющая конструкция @elseif
+        'compileElse',              // 17. Управляющая конструкция @else
+        'compileEndIf',             // 18. Закрытие условий @endif
+        'compileForeach',           // 19. Стандартный цикл @foreach / @endforeach
+        'compileForelse',           // 20. Расширенный цикл с проверкой на пустоту @forelse / @empty
+        'compileEchoes',            // 21. Вывод сырых данных {!! !!} (Raw output)
+        'compileEscapedEchoes'      // 22. Безопасный вывод данных {{ }} (HTML Escape)
     ];
 
     /**
@@ -68,7 +67,7 @@ class Template {
     public function __construct(
         string $templateDir,
         string $cacheDir = 'cache',
-        bool $cacheEnabled = false
+        bool $cacheEnabled = true
     ) {
         $this->templateDir = rtrim($templateDir, '/') . '/';
         $this->cacheDir = rtrim($cacheDir, '/') . '/';
@@ -90,41 +89,28 @@ class Template {
      */
     public function render(string $view, array $data = []): string
     {
-        // 1. Сбрасываем макет перед каждым рендерингом, чтобы старые вызовы не влияли на новые
-        $this->layout = null;
-
-        // 2. Формируем путь к файлу шаблона
         $viewPath = $this->templateDir . str_replace('.', '/', $view) . '.php';
 
         if (!file_exists($viewPath)) {
-            throw new \Exception("Шаблон не найден: {$viewPath}");
+            throw new \Exception("Template not found: {$viewPath}");
         }
 
-        // 3. Компилируем основной шаблон (в процессе сработает compileExtends и заполнит $this->layout)
         $compiledContent = $this->compile(file_get_contents($viewPath));
-
-        // 4. Сохраняем скомпилированный код во временный (или кеш) файл для исполнения
-        $cacheFile = $this->cacheDir . md5($view) . '.php';
+        $safeName = str_replace(['/', '.'], '_', $view);
+        $cacheFile = $this->cacheDir . $safeName . '_' . md5($view) . '.php';
         file_put_contents($cacheFile, $compiledContent);
 
-        // 5. Рендерим дочерний шаблон. В процессе выполнения заполнятся блоки $this->blocks
         ob_start();
         extract(array_merge($this->shared, $data), EXTR_SKIP);
         require $cacheFile;
         $content = ob_get_clean();
 
-        // 6. Если в шаблоне была директива @extends, то $this->layout теперь не пуст
         if ($this->layout) {
-            // Запоминаем имя макета и очищаем свойство, чтобы избежать рекурсии
-            $layoutName = $this->layout;
+            $layoutName = is_array($this->layout) ? $this->layout[1] : $this->layout;
             $this->layout = null;
-
-            // Рекурсивно рендерим макет. 
-            // Внутри макета сработают @yield, которые вытянут данные из $this->blocks
             return $this->render($layoutName, $data);
         }
 
-        // 7. Если наследования нет, просто возвращаем контент
         return $content;
     }
 
@@ -227,18 +213,22 @@ class Template {
     {
         return preg_replace('/@csrf/i', '<input type="hidden" name="_token" value="<?php echo $this->getCsrfToken(); ?>">', $template);
     }
+
     /**
      * Определяет родительский макет: @extends('layout')
      */
-    protected function compileExtends($template)
+    protected function compileExtends($template) 
     {
-        // Ищем @extends и сохраняем имя макета в свойство класса
-        if (preg_match('/@extends\s*\(\s*\'(.*?)\'\s*\)/i', $template, $matches)) {
-            $this->layout = $matches[1];
+        // Используем хеш-разделитель (#) для удобства и флаги 'is' для многострочности
+        $pattern = '#@extends\s*\(\s*[\'"](.*?)[\'"]\s*\)#is';
+            
+        if (preg_match($pattern, $template, $matches)) {
+            // Сохраняем имя родительского макета из первой группы захвата
+            $this->layout = $matches[1]; 
         }
-
-        // Удаляем директиву из текста
-        return preg_replace('/@extends\s*\(\s*\'(.*?)\'\s*\)/i', '', $template);
+            
+        // Удаляем директиву из тела шаблона, чтобы она не выводилась в финальном HTML
+        return preg_replace($pattern, '', $template);
     }
 
     /**
@@ -247,16 +237,18 @@ class Template {
      */
     protected function compileIncludes($template)
     {
-        return preg_replace_callback('/@include\s*\(\s*\'(.*?)\'\s*\)/i', function ($matches) {
-            $path = $this->templateDir . str_replace('.', '/', $matches[1]) . '.php';
+        return preg_replace_callback('/@include\s*\(\s*[\'"](.*?)[\'"]\s*\)/i', function ($matches) {
+            $viewName = $matches[1];
+            $filePath = $this->templateDir . str_replace('.', '/', $viewName) . '.php';
 
-            if (!file_exists($path)) {
-                return "<!-- RunzyTemplate Error: Include '$matches[1]' not found -->";
+            if (!file_exists($filePath)) {
+                return "<!-- RunzyTemplate Error: Include '{$viewName}' not found -->";
             }
 
-            // Читаем содержимое и рекурсивно прогоняем через этот же метод
-            $includedContent = file_get_contents($path);
-            return $this->compileIncludes($includedContent);
+            $includeContent = file_get_contents($filePath);
+            
+            // Рекурсивно компилируем содержимое подключенного файла
+            return $this->compile($includeContent);
         }, $template);
     }
 
@@ -280,11 +272,11 @@ class Template {
     /**
      * Компилирует блоки контента: @block('name')...@endblock
      */
-    protected function compileBlocks($template)
-    {
-        return preg_replace('/@block\s*\(\s*\'(.*?)\'\s*\)(.*?)@endblock/is', '<?php $this->blocks[\'$1\'] = \'$2\'; ?>', $template);
+    protected function compileBlocks($template) {
+        // Важно: захватываем имя блока корректно
+        return preg_replace('/@block\s*\(\s*[\'"](.*?)[\'"]\s*\)(.*?)@endblock/is', '<?php $this->blocks[\'$1\'] = \'$2\'; ?>', $template);
     }
-    
+
     /**
      * Компилирует проверку существования блока: @hasblock('name') ... @endhasblock
      */
@@ -297,17 +289,17 @@ class Template {
     /**
      * Компилирует места вставки: @yield('name')
      */
-    protected function compileYields($template)
-    {
-        return preg_replace('/@yield\s*\(\s*\'(.*?)\'\s*\)/i', '<?php echo $this->blocks[\'$1\'] ?? \'\'; ?>', $template);
+    protected function compileYields($template) {
+        // Поддержка @yield('name') и @yield("name")
+        return preg_replace('/@yield\s*\(\s*[\'"](.*?)[\'"]\s*\)/i', '<?php echo $this->blocks[\'$1\'] ?? \'\'; ?>', $template);
     }
     
     /**
      * Сырой вывод: {!! $var !!} -> <?php echo $var; ?>
      */
-    protected function compileEchoes($template)
-    {
-        return preg_replace('/\{!!\s*(.+?)\s*!!\}/is', '<?php echo $1; ?>', $template);
+    protected function compileEchoes($template) {
+        // Используем нежадный поиск (.*?) и флаг s для многострочности
+        return preg_replace('/\{!!\s*(.*?)\s*!!\}/is', '<?php echo $1; ?>', $template);
     }
 
     /**
@@ -324,13 +316,9 @@ class Template {
     /**
      * Безопасный вывод: {{ $var }} -> <?php echo $this->e($var); ?>
      */
-    protected function compileEscapedEchoes($template)
-    {
-        return preg_replace(
-            '/\{\{\s*(.+?)\s*\}\}/is', 
-            '<?php echo $this->e($1); ?>', 
-            $template
-        );
+    protected function compileEscapedEchoes($template) {
+        // Добавляем $this->e() для безопасности
+        return preg_replace('/\{\{\s*(.*?)\s*\}\}/is', '<?php echo $this->e($1); ?>', $template);
     }
     
     /**
@@ -376,10 +364,10 @@ class Template {
     /**
      * Компилирует цикл @foreach
      */
-    protected function compileForeach($template)
-    {
-        $template = preg_replace('/@foreach\s*\((.*)\)/i', '<?php foreach($1): ?>', $template);
-        return preg_replace('/@endforeach/i', '<?php endforeach; ?>', $template);
+    protected function compileForeach($t) {
+        // Добавляем флаг 's' и 'm' для корректной обработки сложных строк
+        $t = preg_replace('/@foreach\s*\((.*?)\)/is', '<?php foreach($1): ?>', $t);
+        return preg_replace('/@endforeach/is', '<?php endforeach; ?>', $t);
     }
 
     /**
@@ -439,18 +427,27 @@ class Template {
     /**
      * Компилирует вставку стека: @stack('name')
      */
+    /*
     protected function compileStacks($template)
     {
         return preg_replace('/@stack\s*\(\s*\'(.*?)\'\s*\)/i', '<?php echo implode(PHP_EOL, $this->stacks[\'$1\'] ?? []); ?>', $template);
-    }
+    }*/
+    protected function compileStacks($t) {
+    // Поддержка @stack('name') и @stack("name")
+    return preg_replace('/@stack\s*\(\s*[\'"](.*?)[\'"]\s*\)/i', '<?php echo implode(PHP_EOL, $this->stacks[\'$1\'] ?? []); ?>', $t);
+}
 
     /**
      * Компилирует начало наполнения стека: @push('name')
      */
+    /*
     protected function compilePush($template)
     {
         return preg_replace('/@push\s*\(\s*\'(.*?)\'\s*\)(.*?)@endpush/is', '<?php $this->stacks[\'$1\'][] = \'$2\'; ?>', $template);
-    }
+    }*/
+    protected function compilePush($t) {
+    return preg_replace('/@push\s*\(\s*[\'"](.*?)[\'"]\s*\)(.*?)@endpush/is', '<?php $this->stacks[\'$1\'][] = \'$2\'; ?>', $t);
+}
 
     /**
      * Компилирует @prepend('name') — добавляет в начало стека (иногда нужно для приоритетных стилей)
