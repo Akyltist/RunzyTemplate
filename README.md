@@ -136,10 +136,34 @@ echo $runzy->render('welcome', [
 ]);
 ```
 
-**Syntax Highlights**
+## Syntax Highlights
 
-**Smart Comments**
-  Use special comment tags that are completely stripped out during compilation. Unlike standard HTML comments, these will never be visible in the browser's "View Source".
-  ```html
-  {{-- This is a private note for developers and won't appear in HTML --}}
-  <p>This content is public.</p>
+### Smart Comments
+
+Use special comment tags that are completely stripped out during compilation. Unlike standard HTML comments, these will never be visible in the browser's "View Source".
+
+```html
+{{-- This is a private note for developers and won't appear in HTML --}}
+<p>This content is public.</p>
+```
+
+### Embedded PHP Blocks
+When you need to execute raw logic, use the `@php` directive. This keeps your templates clean while allowing full access to PHP power when necessary.
+```html
+@php
+    $status = $user->isActive() ? 'online' : 'offline';
+    $labelClass = $status === 'online' ? 'bg-green' : 'bg-gray';
+@endphp
+
+<span class="status-{{ $labelClass }}">{{ $status }}</span>
+```
+
+### Built-in CSRF Protection
+Protect your application from Cross-Site Request Forgery attacks with a single directive. It automatically generates a secure token and injects a hidden input into your forms.
+```html
+<form action="/update" method="POST">
+    @csrf
+    <input type="text" name="display_name">
+    <button type="submit">Save Changes</button>
+</form>
+```
