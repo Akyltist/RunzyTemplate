@@ -21,6 +21,9 @@ class Template {
     /** @var array Глобальные переменные, доступные во всех шаблонах */
     private $shared = [];
 
+    /** @var callable|null Функция для проверки авторизации */
+    private $authChecker;
+
     /**
      * Список методов для обработки синтаксиса шаблона
      */
@@ -31,14 +34,16 @@ class Template {
         'compileBlockConditionals', // 4. Проверяем наличие блоков
         'compileYields',            // 5. Вставляем блоки в макет
         'compilePHP',               // 6. Чистый PHP
-        'compileIf',                // 7. Логика (If/Else)
+        'compileAuth',              // 7. Это пользователь
+        'compileGuest',             // 8. Это гость
+        'compileIf',                // 9. Логика (If/Else)
         'compileElseIf',
         'compileElse',
         'compileEndIf',             // 
-        'compileForeach',           // 8. Циклы
-        'compileForelse',           // 9. Цикл @forelse
-        'compileEchoes',            // 10. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
-        'compileEscapedEchoes'      // 11. Безопасный вывод {{ }} (Потом общий синтаксис)
+        'compileForeach',           // 10. Циклы
+        'compileForelse',           // 11. Цикл @forelse
+        'compileEchoes',            // 12. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
+        'compileEscapedEchoes'      // 13. Безопасный вывод {{ }} (Потом общий синтаксис)
     ];
 
     /**
@@ -119,6 +124,48 @@ class Template {
         }
 
         return $template;
+    }
+
+    /**
+     * Проверяет статус авторизации.
+     * Позволяет использовать кастомную логику, если она задана.
+     */
+    protected function isAuth(): bool
+    {
+        // Если пользователь передал свою функцию — вызываем её
+        if (is_callable($this->authChecker)) {
+            return ($this->authChecker)();
+        }
+
+        // Стандартная логика (по умолчанию)
+        return isset($_SESSION['user']);
+    }
+
+    /**
+     * Позволяет задать свою логику проверки авторизации.
+     */
+    public function setAuthChecker(callable $callback)
+    {
+        $this->authChecker = $callback;
+        return $this;
+    }
+
+    /**
+     * Компилирует @auth ... @endauth
+     */
+    protected function compileAuth($template)
+    {
+        $template = preg_replace('/@auth/i', '<?php if($this->isAuth()): ?>', $template);
+        return preg_replace('/@endauth/i', '<?php endif; ?>', $template);
+    }
+
+    /**
+     * Компилирует @guest ... @endguest
+     */
+    protected function compileGuest($template)
+    {
+        $template = preg_replace('/@guest/i', '<?php if(!$this->isAuth()): ?>', $template);
+        return preg_replace('/@endguest/i', '<?php endif; ?>', $template);
     }
 
     /**
