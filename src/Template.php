@@ -33,8 +33,9 @@ class Template {
         'compileElse',
         'compileEndIf',             // 
         'compileForeach',           // 8. Циклы
-        'compileEchoes',            // 9. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
-        'compileEscapedEchoes'      // 10. Безопасный вывод {{ }} (Потом общий синтаксис)
+        'compileForelse',           // 9. Цикл @forelse
+        'compileEchoes',            // 10. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
+        'compileEscapedEchoes'      // 11. Безопасный вывод {{ }} (Потом общий синтаксис)
     ];
 
     /**
@@ -50,7 +51,7 @@ class Template {
         $this->templateDir = rtrim($templateDir, '/') . '/';
         $this->cacheDir = rtrim($cacheDir, '/') . '/';
         $this->cacheEnabled = $cacheEnabled;
-    
+
         // Создаем папку только если кеш включен и папки еще нет
         if ($this->cacheEnabled && !is_dir($this->cacheDir)) {
             mkdir($this->cacheDir, 0755, true);
@@ -253,6 +254,23 @@ class Template {
     {
         $template = preg_replace('/@foreach\s*\((.*)\)/i', '<?php foreach($1): ?>', $template);
         return preg_replace('/@endforeach/i', '<?php endforeach; ?>', $template);
+    }
+
+    /**
+     * Компилирует цикл @forelse
+     */
+    protected function compileForelse($template)
+    {
+        // Заменяем @forelse($users as $user) на проверку и начало цикла
+        $template = preg_replace('/@forelse\s*\(\s*(.+?)\s*as\s*(.+?)\s*\)/i', '<?php if(!empty($1)): foreach($1 as $2): ?>', $template);
+
+        // Заменяем @empty на переход к блоку else
+        $template = preg_replace('/@empty/i', '<?php endforeach; else: ?>', $template);
+
+        // Заменяем @endforelse на закрытие условия
+        $template = preg_replace('/@endforelse/i', '<?php endif; ?>', $template);
+
+        return $template;
     }
     
     /**
