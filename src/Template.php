@@ -12,6 +12,9 @@ class Template {
     /** @var bool Флаг включения/выключения кеширования */
     private $cacheEnabled;
 
+    /** @var array Хранилище содержимого блоков */
+    private $blocks = [];
+
     /**
      * Список методов для обработки синтаксиса шаблона
      */
@@ -119,11 +122,23 @@ class Template {
         }, $template);
     }
     
-    protected function compileBlocks($template) { return $template; }
+    /**
+     * Компилирует блоки контента: @block('name')...@endblock
+     */
+    protected function compileBlocks($template)
+    {
+        return preg_replace('/@block\s*\(\s*\'(.*?)\'\s*\)(.*?)@endblock/is', '<?php $this->blocks[\'$1\'] = \'$2\'; ?>', $template);
+    }
     
     protected function compileBlockConditionals($template) { return $template; }
     
-    protected function compileYields($template) { return $template; }
+    /**
+     * Компилирует места вставки: @yield('name')
+     */
+    protected function compileYields($template)
+    {
+        return preg_replace('/@yield\s*\(\s*\'(.*?)\'\s*\)/i', '<?php echo $this->blocks[\'$1\'] ?? \'\'; ?>', $template);
+    }
     
     /**
      * Сырой вывод: {!! $var !!} -> <?php echo $var; ?>
