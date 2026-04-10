@@ -30,6 +30,9 @@ class Template {
     /** @var array Пользовательские директивы */
     private $customDirectives = [];
 
+    /** @var array Хранилище для стеков (скрипты, стили и т.д.) */
+    private $stacks = [];
+
     /**
      * Список методов для обработки синтаксиса шаблона
      */
@@ -37,21 +40,24 @@ class Template {
         'compileComments',          // 1. Удаляем лишнее сразу
         'compileIncludes',          // 2. Собираем файлы в один (рекурсия)
         'compileBlocks',            // 3. Собираем контент блоков
-        'compileBlockConditionals', // 4. Проверяем наличие блоков
-        'compileYields',            // 5. Вставляем блоки в макет
-        'compileCustomDirectives',  // 6. Вставляем блоки в макет
-        'compilePHP',               // 7. Чистый PHP
-        'compileCsrf',              // 8. Поддержка @csrf директив/токенов
-        'compileAuth',              // 9. Это пользователь
-        'compileGuest',             // 10. Это гость
-        'compileIf',                // 11. Логика (If/Else)
+        'compileStacks',            // 4. Вставка стека (CSS или Js)
+        'compilePush',              // 5. Наполнение стека
+        'compilePrepend',           // 6. Добавляет в начало стека
+        'compileBlockConditionals', // 7. Проверяем наличие блоков
+        'compileYields',            // 8. Вставляем блоки в макет
+        'compileCustomDirectives',  // 9. Вставляем блоки в макет
+        'compilePHP',               // 10. Чистый PHP
+        'compileCsrf',              // 11. Поддержка @csrf директив/токенов
+        'compileAuth',              // 12. Это пользователь
+        'compileGuest',             // 13. Это гость
+        'compileIf',                // 14. Логика (If/Else)
         'compileElseIf',
         'compileElse',
         'compileEndIf',             // 
-        'compileForeach',           // 12. Циклы
-        'compileForelse',           // 13. Цикл @forelse
-        'compileEchoes',            // 14. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
-        'compileEscapedEchoes'      // 15. Безопасный вывод {{ }} (Потом общий синтаксис)
+        'compileForeach',           // 15. Циклы
+        'compileForelse',           // 16. Цикл @forelse
+        'compileEchoes',            // 17. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
+        'compileEscapedEchoes'      // 18. Безопасный вывод {{ }} (Потом общий синтаксис)
     ];
 
     /**
@@ -428,5 +434,29 @@ class Template {
         }
 
         return $template;
+    }
+
+    /**
+     * Компилирует вставку стека: @stack('name')
+     */
+    protected function compileStacks($template)
+    {
+        return preg_replace('/@stack\s*\(\s*\'(.*?)\'\s*\)/i', '<?php echo implode(PHP_EOL, $this->stacks[\'$1\'] ?? []); ?>', $template);
+    }
+
+    /**
+     * Компилирует начало наполнения стека: @push('name')
+     */
+    protected function compilePush($template)
+    {
+        return preg_replace('/@push\s*\(\s*\'(.*?)\'\s*\)(.*?)@endpush/is', '<?php $this->stacks[\'$1\'][] = \'$2\'; ?>', $template);
+    }
+
+    /**
+     * Компилирует @prepend('name') — добавляет в начало стека (иногда нужно для приоритетных стилей)
+     */
+    protected function compilePrepend($template)
+    {
+        return preg_replace('/@prepend\s*\(\s*\'(.*?)\'\s*\)(.*?)@endprepend/is', '<?php array_unshift($this->stacks[\'$1\'] = $this->stacks[\'$1\'] ?? [], \'$2\'); ?>', $template);
     }
 }
