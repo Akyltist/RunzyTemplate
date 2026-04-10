@@ -1,5 +1,6 @@
 # 🚀 RunzyTemplate
-![Tests](https://github.com)
+[![Tests](https://github.com/Akyltist/RunzyTemplate/actions/workflows/tests.yml/badge.svg)](https://github.com/Akyltist/RunzyTemplate/actions/workflows/tests.yml)
+
 
 [Читать на русском](README_RU.md)
 
