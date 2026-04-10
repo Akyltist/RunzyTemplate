@@ -50,6 +50,11 @@ class Template {
         $this->templateDir = rtrim($templateDir, '/') . '/';
         $this->cacheDir = rtrim($cacheDir, '/') . '/';
         $this->cacheEnabled = $cacheEnabled;
+    
+        // Создаем папку только если кеш включен и папки еще нет
+        if ($this->cacheEnabled && !is_dir($this->cacheDir)) {
+            mkdir($this->cacheDir, 0755, true);
+        }
     }
 
     /**
