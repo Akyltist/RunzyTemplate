@@ -18,6 +18,9 @@ class Template {
     /** @var string|null Имя родительского макета */
     private $layout;
 
+    /** @var array Глобальные переменные, доступные во всех шаблонах */
+    private $shared = [];
+
     /**
      * Список методов для обработки синтаксиса шаблона
      */
@@ -87,7 +90,7 @@ class Template {
 
         // 5. Рендерим дочерний шаблон. В процессе выполнения заполнятся блоки $this->blocks
         ob_start();
-        extract($data, EXTR_SKIP);
+        extract(array_merge($this->shared, $data), EXTR_SKIP);
         require $cacheFile;
         $content = ob_get_clean();
 
@@ -149,6 +152,23 @@ class Template {
             $includedContent = file_get_contents($path);
             return $this->compileIncludes($includedContent);
         }, $template);
+    }
+
+    /**
+     * Делится переменной со всеми шаблонами.
+     * 
+     * @param string|array $key Имя переменной или массив данных
+     * @param mixed $value Значение (если $key — строка)
+     * @return $this
+     */
+    public function share($key, $value = null)
+    {
+        if (is_array($key)) {
+            $this->shared = array_merge($this->shared, $key);
+        } else {
+            $this->shared[$key] = $value;
+        }
+        return $this;
     }
     
     /**
