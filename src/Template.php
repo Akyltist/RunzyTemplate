@@ -124,7 +124,13 @@ class Template {
         return preg_replace('/\{\{\s*(.+?)\s*\}\}/is', '<?php echo htmlspecialchars($1, ENT_QUOTES, "UTF-8"); ?>', $template);
     }
     
-    protected function compilePHP($template) { return $template; }
+    /**
+     * Компилирует блоки чистого PHP: @php ... @endphp
+     */
+    protected function compilePHP($template)
+    {
+        return preg_replace('/@php(.*?)@endphp/is', '<?php $1; ?>', $template);
+    }
     
     /**
      * Компилирует @if(...)
