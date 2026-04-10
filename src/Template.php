@@ -158,7 +158,14 @@ class Template {
         return preg_replace('/@endif/i', '<?php endif; ?>', $template);
     }
     
-    protected function compileForeach($template) { return $template; }
+    /**
+     * Компилирует цикл @foreach
+     */
+    protected function compileForeach($template)
+    {
+        $template = preg_replace('/@foreach\s*\((.*)\)/i', '<?php foreach($1): ?>', $template);
+        return preg_replace('/@endforeach/i', '<?php endforeach; ?>', $template);
+    }
     
     /**
      * Компилирует комментарии: {{-- текст --}} -> удаляет их из вывода
