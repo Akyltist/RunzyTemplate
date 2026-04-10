@@ -1,0 +1,11 @@
+# Зависимости Composer
+/vendor/
+composer.lock
+
+# Временные файлы RunzyTemplate
+/cache/
+
+# Логи и системные файлы
+*.log
+.DS_Store
+Thumbs.db

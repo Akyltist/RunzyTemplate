@@ -1,0 +1,43 @@
+{
+    "name": "akyltist/runzy-template",
+    "description": "A lightweight, fast, and extensible PHP templating engine inspired by Blade.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "php", 
+        "templating", 
+        "template-engine", 
+        "blade", 
+        "blade-style", 
+        "html", 
+        "view", 
+        "renderer", 
+        "layout", 
+        "runzy", 
+        "runzy-template", 
+        "fast-template", 
+        "minimalist", 
+        "lightweight", 
+        "dependency-free", 
+        "mvc", 
+        "directives", 
+        "compilable", 
+        "cache", 
+        "frontend-logic", 
+        "template-inheritance"
+    ],
+    "authors": [
+        {
+            "name": "Akyltist",
+            "email": "your-email@example.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Akyltist\\RunzyTemplate\\": "src/"
+        }
+    }
+}
