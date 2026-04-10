@@ -24,6 +24,9 @@ class Template {
     /** @var callable|null Функция для проверки авторизации */
     private $authChecker;
 
+    /** @var callable|null Функция для получения CSRF-токена */
+    private $csrfProvider;
+
     /**
      * Список методов для обработки синтаксиса шаблона
      */
@@ -34,16 +37,17 @@ class Template {
         'compileBlockConditionals', // 4. Проверяем наличие блоков
         'compileYields',            // 5. Вставляем блоки в макет
         'compilePHP',               // 6. Чистый PHP
-        'compileAuth',              // 7. Это пользователь
-        'compileGuest',             // 8. Это гость
-        'compileIf',                // 9. Логика (If/Else)
+        'compileCsrf',              // 7. Поддержка @csrf директив/токенов
+        'compileAuth',              // 8. Это пользователь
+        'compileGuest',             // 9. Это гость
+        'compileIf',                // 10. Логика (If/Else)
         'compileElseIf',
         'compileElse',
         'compileEndIf',             // 
-        'compileForeach',           // 10. Циклы
-        'compileForelse',           // 11. Цикл @forelse
-        'compileEchoes',            // 12. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
-        'compileEscapedEchoes'      // 13. Безопасный вывод {{ }} (Потом общий синтаксис)
+        'compileForeach',           // 11. Циклы
+        'compileForelse',           // 12. Цикл @forelse
+        'compileEchoes',            // 13. Сырой вывод {!! !!} (Сначала специфичный синтаксис)
+        'compileEscapedEchoes'      // 14. Безопасный вывод {{ }} (Потом общий синтаксис)
     ];
 
     /**
@@ -168,6 +172,51 @@ class Template {
         return preg_replace('/@endguest/i', '<?php endif; ?>', $template);
     }
 
+    /**
+     * Устанавливает пользовательский обработчик для генерации CSRF-токена.
+     * Позволяет интегрировать шаблонизатор с любой существующей системой безопасности.
+     * 
+     * @param callable $callback Функция, возвращающая строку токена
+     * @return $this
+     */
+    public function setCsrfProvider(callable $callback)
+    {
+        $this->csrfProvider = $callback;
+        return $this;
+    }
+
+    /**
+     * Извлекает CSRF-токен для вставки в форму.
+     * Сначала проверяет наличие кастомного провайдера, иначе использует стандартную сессию.
+     * 
+     * @return string Текущий защитный токен
+     */
+    protected function getCsrfToken(): string
+    {
+        // Если пользователь задал свою логику через setCsrfProvider
+        if (is_callable($this->csrfProvider)) {
+            return ($this->csrfProvider)();
+        }
+
+        // Стандартная логика: работа с нативной сессией PHP
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        if (empty($_SESSION['_token'])) {
+            $_SESSION['_token'] = bin2hex(random_bytes(32));
+        }
+
+        return $_SESSION['_token'];
+    }
+
+    /**
+     * Компилирует директиву @csrf в скрытый input.
+     */
+    protected function compileCsrf($template)
+    {
+        return preg_replace('/@csrf/i', '<input type="hidden" name="_token" value="<?php echo $this->getCsrfToken(); ?>">', $template);
+    }
     /**
      * Определяет родительский макет: @extends('layout')
      */
