@@ -2,8 +2,125 @@
 
 namespace Akyltist\RunzyTemplate;
 
-class RunzyTemplate {
-    public function render(string $name): string {
-        return "Hello, {$name}! RunzyTemplate is working.";
+class Template {
+    /** @var string Путь к папке с шаблонами */
+    private $templateDir;
+
+    /** @var string Путь к папке для кеша */
+    private $cacheDir;
+
+    /** @var bool Флаг включения/выключения кеширования */
+    private $cacheEnabled;
+
+    /**
+     * Список методов для обработки синтаксиса шаблона
+     */
+    private $compilers = [
+        'compileIncludes',
+        'compileBlocks',
+        'compileBlockConditionals',
+        'compileYields',
+        'compileEchoes',
+        'compileEscapedEchoes',
+        'compilePHP',
+        'compileIf',
+        'compileElse',
+        'compileElseIf',
+        'compileForeach',
+        'compileComments'
+    ];
+
+    /**
+     * @param string $templateDir Путь к шаблонам
+     * @param string $cacheDir    Путь к кешу
+     * @param bool   $cacheEnabled Использовать кеширование
+     */
+    public function __construct(
+        string $templateDir,
+        string $cacheDir = 'cache',
+        bool $cacheEnabled = false
+    ) {
+        $this->templateDir = rtrim($templateDir, '/') . '/';
+        $this->cacheDir = rtrim($cacheDir, '/') . '/';
+        $this->cacheEnabled = $cacheEnabled;
     }
+
+    /**
+     * Рендерит шаблон, используя систему кеширования.
+     * 
+     * @param string $view Имя шаблона (поддерживает точечную нотацию: 'auth.login')
+     * @param array $data Данные для шаблона
+     * @return string
+     * @throws \Exception
+     */
+    public function render(string $view, array $data = []): string
+    {
+        $viewPath = $this->templateDir . str_replace('.', '/', $view) . '.php';
+
+        if (!file_exists($viewPath)) {
+            throw new \Exception("Шаблон не найден: {$viewPath}");
+        }
+
+        // Путь к скомпилированному файлу в кеше
+        $cacheFile = $this->cacheDir . md5($view) . '.php';
+
+        // Логика компиляции: если кеш выключен или устарел
+        if (!$this->cacheEnabled || !file_exists($cacheFile) || filemtime($viewPath) > filemtime($cacheFile)) {
+            $content = file_get_contents($viewPath);
+            $compiledContent = $this->compile($content);
+            
+            if (!file_put_contents($cacheFile, $compiledContent)) {
+                throw new \Exception("Не удалось записать файл кеша: {$cacheFile}");
+            }
+        }
+
+        // Рендеринг в песочнице
+        ob_start();
+        try {
+            extract($data, EXTR_SKIP);
+            require $cacheFile;
+        } catch (\Throwable $e) {
+            ob_end_clean();
+            throw $e;
+        }
+
+        return ob_get_clean();
+    }
+
+    /**
+     * Прогоняет содержимое шаблона через все компиляторы
+     */
+    private function compile(string $template): string
+    {
+        foreach ($this->compilers as $compiler) {
+            $template = $this->$compiler($template);
+        }
+
+        return $template;
+    }
+
+    protected function compileIncludes($template) { return $template; }
+    
+    protected function compileBlocks($template) { return $template; }
+    
+    protected function compileBlockConditionals($template) { return $template; }
+    
+    protected function compileYields($template) { return $template; }
+    
+    protected function compileEchoes($template) { return $template; }
+    
+    protected function compileEscapedEchoes($template) { return $template; }
+    
+    protected function compilePHP($template) { return $template; }
+    
+    protected function compileIf($template) { return $template; }
+    
+    protected function compileElse($template) { return $template; }
+    
+    protected function compileElseIf($template) { return $template; }
+    
+    protected function compileForeach($template) { return $template; }
+    
+    protected function compileComments($template) { return $template; }
+
 }
