@@ -278,11 +278,10 @@ class Template {
             $name = $matches[1];
             $content = $matches[2];
             
-            // Экранируем одинарные кавычки и обратные слэши, 
-            // чтобы они не ломали PHP-строку в кэше
-            $content = addcslashes($content, "'\\");
-            
-            return "<?php \$this->blocks['$name'] = '$content'; ?>";
+            // Вместо присваивания переменной, мы открываем буфер, 
+            // выполняем код блока (там могут быть циклы и переменные)
+            // и сохраняем результат в массив блоков.
+            return "<?php ob_start(); ?>$content<?php \$this->blocks['$name'] = ob_get_clean(); ?>";
         }, $template);
     }
 
