@@ -268,13 +268,22 @@ class Template {
         }
         return $this;
     }
-    
+
     /**
      * Компилирует блоки контента: @block('name')...@endblock
+     * С экранированием кавычек для предотвращения ParseError
      */
     protected function compileBlocks($template) {
-        // Важно: захватываем имя блока корректно
-        return preg_replace('/@block\s*\(\s*[\'"](.*?)[\'"]\s*\)(.*?)@endblock/is', '<?php $this->blocks[\'$1\'] = \'$2\'; ?>', $template);
+        return preg_replace_callback('/@block\s*\(\s*[\'"](.*?)[\'"]\s*\)(.*?)@endblock/is', function ($matches) {
+            $name = $matches[1];
+            $content = $matches[2];
+            
+            // Экранируем одинарные кавычки и обратные слэши, 
+            // чтобы они не ломали PHP-строку в кэше
+            $content = addcslashes($content, "'\\");
+            
+            return "<?php \$this->blocks['$name'] = '$content'; ?>";
+        }, $template);
     }
 
     /**
