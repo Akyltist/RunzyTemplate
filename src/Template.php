@@ -435,33 +435,33 @@ class Template {
     /**
      * Компилирует вставку стека: @stack('name')
      */
-    /*
-    protected function compileStacks($template)
-    {
-        return preg_replace('/@stack\s*\(\s*\'(.*?)\'\s*\)/i', '<?php echo implode(PHP_EOL, $this->stacks[\'$1\'] ?? []); ?>', $template);
-    }*/
     protected function compileStacks($t) {
-    // Поддержка @stack('name') и @stack("name")
-    return preg_replace('/@stack\s*\(\s*[\'"](.*?)[\'"]\s*\)/i', '<?php echo implode(PHP_EOL, $this->stacks[\'$1\'] ?? []); ?>', $t);
-}
+        return preg_replace('/@stack\s*\(\s*[\'"](.*?)[\'"]\s*\)/i', '<?php echo implode(PHP_EOL, $this->stacks[\'$1\'] ?? []); ?>', $t);
+    }
 
     /**
      * Компилирует начало наполнения стека: @push('name')
      */
-    /*
     protected function compilePush($template)
     {
-        return preg_replace('/@push\s*\(\s*\'(.*?)\'\s*\)(.*?)@endpush/is', '<?php $this->stacks[\'$1\'][] = \'$2\'; ?>', $template);
-    }*/
-    protected function compilePush($t) {
-    return preg_replace('/@push\s*\(\s*[\'"](.*?)[\'"]\s*\)(.*?)@endpush/is', '<?php $this->stacks[\'$1\'][] = \'$2\'; ?>', $t);
-}
+        return preg_replace_callback('/@push\s*\(\s*[\'"](.*?)[\'"]\s*\)(.*?)@endpush/is', function ($matches) {
+            $name = $matches[1];
+            $content = $matches[2];
+            // Открываем буфер, выплевываем JS как есть, сохраняем в стек
+            return "<?php ob_start(); ?>$content<?php \$this->stacks['$name'][] = ob_get_clean(); ?>";
+        }, $template);
+    }
 
     /**
      * Компилирует @prepend('name') — добавляет в начало стека (иногда нужно для приоритетных стилей)
      */
     protected function compilePrepend($template)
     {
-        return preg_replace('/@prepend\s*\(\s*\'(.*?)\'\s*\)(.*?)@endprepend/is', '<?php array_unshift($this->stacks[\'$1\'] = $this->stacks[\'$1\'] ?? [], \'$2\'); ?>', $template);
+        return preg_replace_callback('/@prepend\s*\(\s*[\'"](.*?)[\'"]\s*\)(.*?)@endprepend/is', function ($matches) {
+            $name = $matches[1];
+            $content = $matches[2];
+            // То же самое, но используем array_unshift для начала стека
+            return "<?php ob_start(); ?>$content<?php array_unshift(\$this->stacks['$name'] = \$this->stacks['$name'] ?? [], ob_get_clean()); ?>";
+        }, $template);
     }
 }
