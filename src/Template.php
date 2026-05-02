@@ -383,15 +383,13 @@ class Template {
      */
     protected function compileForelse($template)
     {
-        // Заменяем @forelse($users as $user) на проверку и начало цикла
-        $template = preg_replace('/@forelse\s*\(\s*(.+?)\s*as\s*(.+?)\s*\)/i', '<?php if(!empty($1)): foreach($1 as $2): ?>', $template);
-
-        // Заменяем @empty на переход к блоку else
+        // Используем \s+as\s+ чтобы найти "as" именно как отдельное слово с пробелами
+        $template = preg_replace('/@forelse\s*\(\s*(.+?)\s+as\s+(.+?)\s*\)/i', '<?php if(!empty($1)): foreach($1 as $2): ?>', $template);
+        
         $template = preg_replace('/@empty/i', '<?php endforeach; else: ?>', $template);
-
-        // Заменяем @endforelse на закрытие условия
+        
         $template = preg_replace('/@endforelse/i', '<?php endif; ?>', $template);
-
+        
         return $template;
     }
     
