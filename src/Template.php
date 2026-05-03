@@ -237,18 +237,25 @@ class Template {
      */
     protected function compileIncludes($template)
     {
-        return preg_replace_callback('/@include\s*\(\s*[\'"](.*?)[\'"]\s*\)/i', function ($matches) {
+        // Новая регулярка: ищет имя файла и опционально захватывает всё, что идет после запятой
+        return preg_replace_callback('/@include\s*\(\s*[\'"](.*?)[\'"](?:\s*,\s*(.*?))?\s*\)/i', function ($matches) {
             $viewName = $matches[1];
+            $data = isset($matches[2]) ? $matches[2] : '[]'; // Если данных нет, передаем пустой массив
+            
             $filePath = $this->templateDir . str_replace('.', '/', $viewName) . '.php';
-
+            
             if (!file_exists($filePath)) {
                 return "<!-- RunzyTemplate Error: Include '{$viewName}' not found -->";
             }
-
+            
             $includeContent = file_get_contents($filePath);
             
-            // Рекурсивно компилируем содержимое подключенного файла
-            return $this->compile($includeContent);
+            // Магия: оборачиваем контент инклуда в extract(), чтобы данные стали переменными
+            $compiledContent = "<?php (function(\$data) { extract(\$data); ?> " 
+                . $this->compile($includeContent) 
+                . " <?php })({$data}); ?>";
+            
+            return $compiledContent;
         }, $template);
     }
 
