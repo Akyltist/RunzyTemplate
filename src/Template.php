@@ -131,6 +131,23 @@ class Template {
     }
 
     /**
+     * Экранирует строку для безопасного использования внутри JavaScript контекста.
+     * Превращает переносы строк в \n и защищает от инъекций.
+     * 
+     * @param mixed $value Входная строка
+     * @return string Безопасная JS-строка
+     */
+    public function escapeJs($value): string
+    {
+        // Кодируем в JSON, чтобы получить безопасные \n и экранирование
+        $json = json_encode($value ?? '', JSON_UNESCAPED_UNICODE);
+
+        // json_encode оборачивает результат в двойные кавычки ("..."). 
+        // Поскольку в шаблоне уже стоят одинарные кавычки, мы просто срезаем внешние кавычки JSON.
+        return substr($json, 1, -1);
+    }
+
+    /**
      * Проверяет статус авторизации.
      * Позволяет использовать кастомную логику, если она задана.
      */
@@ -327,7 +344,19 @@ class Template {
      */
     protected function compileEscapedEchoes($template)
     {
-        return preg_replace('/\{\{\s*(.+?)\s*\}\}/s', '<?php echo $this->e($1); ?>', $template);
+        return preg_replace_callback('/\{\{\s*(.*?)\s*\}\}/s', function ($matches) {
+            $expression = $matches[1];
+            
+            // Проверяем, есть ли в выражении фильтр |js
+            if (preg_match('/^(.*?)\s*\|\s*js$/i', $expression, $filterMatches)) {
+                $realExpression = $filterMatches[1];
+                // Вместо обычного e() вызываем наш новый метод escapeJs()
+                return "<?php echo \$this->escapeJs({$realExpression}); ?>";
+            }
+            
+            // Если фильтра нет — стандартный безопасный вывод
+            return "<?php echo \$this->e({$expression}); ?>";
+        }, $template);
     }
     
     /**
@@ -343,8 +372,12 @@ class Template {
      */
     protected function compileIf($template)
     {
-        // Ищем строго @if как отдельное слово шаблонизатора
-        return preg_replace('/(?<!\w)@if\s*\((.*?)\)/i', '<?php if($1): ?>', $template);
+        // Регулярка использует рекурсивное подвыражение (?<cond>...) для поиска сбалансированных круглых скобок
+        return preg_replace_callback('/(?<!\w)@if\s*(\((?:[^()]+|(?1))*\))/is', function ($matches) {
+            // Убираем самые внешние скобки, которые захватила регулярка
+            $condition = preg_replace('/^\((.*)\)$/is', '$1', $matches[1]);
+            return "<?php if({$condition}): ?>";
+        }, $template);
     }
 
     /**
@@ -352,7 +385,11 @@ class Template {
      */
     protected function compileElseIf($template)
     {
-        return preg_replace('/@elseif\s*\((.*)\)/i', '<?php elseif($1): ?>', $template);
+        // Точно такая же умная проверка для @elseif
+        return preg_replace_callback('/(?<!\w)@elseif\s*(\((?:[^()]+|(?1))*\))/is', function ($matches) {
+            $condition = preg_replace('/^\((.*)\)$/is', '$1', $matches[1]);
+            return "<?php elseif({$condition}): ?>";
+        }, $template);
     }
 
     /**

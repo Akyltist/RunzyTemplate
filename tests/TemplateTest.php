@@ -322,6 +322,89 @@ class TemplateTest extends TestCase
         $this->assertStringContainsString('Yes', $this->engine->render('auth'));
     }
 
+public function test_template_conditional_empty_tasks_rendering()
+{
+    // 1. Создаем тестируемый шаблон с твоим условием ветвления
+    $template = <<<'EOT'
+    <div class="project-tasks-box">
+        @if(empty($tasks))
+            <div class="has-text-centered py-6 has-text-grey-light">
+                <i class="fas fa-tasks fa-3x mb-3"></i>
+                <p>В этом проекте еще нет задач</p>
+            </div>
+        @endif
+        
+        @foreach($tasks as $item)
+            <div class="task-item">{{ $item->text }}</div>
+        @endforeach
+    </div>
+    EOT;
+
+    $this->createView('conditional_tasks_test', $template);
+
+    // --- КЕЙС 1: Проект АБСОЛЮТНО ПУСТОЙ (задач нет) ---
+    $emptyData = [
+        'tasks' => []
+    ];
+
+    $outputEmpty = $this->engine->render('conditional_tasks_test', $emptyData);
+
+    // Проверяем, что при пустом массиве заглушка КРАСИВО И ЧЕТКО СТЕРЛАСЬ И ОТРЕНДЕРИЛАСЬ
+    $this->assertStringContainsString('В этом проекте еще нет задач', $outputEmpty);
+    $this->assertStringContainsString('class="has-text-centered py-6 has-text-grey-light"', $outputEmpty);
+
+
+    // --- КЕЙС 2: В проекте РЕАЛЬНО ЕСТЬ ЗАДАЧИ ---
+    $activeData = [
+        'tasks' => [
+            (object)['id' => 1, 'text' => 'Разработать этикетку PROFLINE']
+        ]
+    ];
+
+    $outputActive = $this->engine->render('conditional_tasks_test', $activeData);
+
+    // КРИТИЧЕСКИЙ ТЕСТ: Проверяем, что Runzy не накосячил с empty()
+    // Заглушки "В этом проекте еще нет задач" на экране БЫТЬ НЕ ДОЛЖНО!
+    $this->assertStringNotContainsString('В этом проекте еще нет задач', $outputActive);
+    
+    // А вот сама задача должна успешно появиться
+    $this->assertStringContainsString('Разработать этикетку PROFLINE', $outputActive);
+}
+
+    public function test_template_js_context_escaping_with_newlines_and_bullets()
+{
+    // Сценарий: Текст ТЗ содержит реальные переносы строк (\n) и маркеры списков.
+    // Если шаблонизатор выведет его "как есть" или сделает только htmlspecialchars,
+    // одинарные кавычки в JS сломаются, и браузер выдаст "Invalid or unexpected token".
+    
+    // Ожидаем от автора синтаксис специального JS-экранирования (например, модификатор :js или фильтр)
+    $template = <<<'EOT'
+    <div x-data="{ active: false }">
+        <button @click="initTask('{{ $task->text|js }}')">Открыть задачу</button>
+    </div>
+    EOT;
+
+    $this->createView('js_escaping_test', $template);
+
+    $data = [
+        'task' => (object)[
+            'text' => "УТ-00015734 - КОМПЛЕКТ картриджей ITA.\n• Нужен макет.\n• Срочно!"
+        ]
+    ];
+
+    $output = $this->engine->render('js_escaping_test', $data);
+
+    // --- ПРОВЕРКА БЕЗОПАСНОСТИ ДЛЯ JAVASCRIPT ---
+    
+    // 1. Тест НЕ должен содержать реальных, сырых переносов строк внутри атрибута @click
+    $this->assertStringNotContainsString("@click=\"initTask('УТ-00015734 - КОМПЛЕКТ картриджей ITA.\n", $output);
+
+    // 2. Шаблонизатор должен автоматически экранировать перенос строки в безопасный для JS символ '\n'
+    // или вернуть валидную JSON-строку
+    $this->assertStringContainsString('\n• Нужен макет.', $output);
+    $this->assertStringContainsString('\n• Срочно!', $output);
+}
+
     public function test_custom_directives()
     {
         $this->engine->directive('upper', function($m) {
