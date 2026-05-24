@@ -73,7 +73,7 @@ composer update
 ## Requirements
 
 PHP: 7.1 or higher
-Extensions: mbstring (recommended for full UTF-8 support)
+Extensions: mbstring (recommended for full UTF-8 support) ONLY
 
 ## 📦 Quick Start
 

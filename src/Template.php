@@ -1,4 +1,5 @@
 <?php
+# версия от 24.05.2026
 
 namespace Akyltist\RunzyTemplate;
 
