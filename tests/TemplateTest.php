@@ -124,18 +124,157 @@ class TemplateTest extends TestCase
         $this->assertEquals('[Fruits: Apple Banana][Vegetables: Carrot]', $result);
     }
 
+    public function test_js_frameworks_compatibility()
+    {
+        $template = <<<'EOT'
+        <div x-data="{ allTasks: {!! json_encode($tasks) !!}, loading: false }">
+            <template x-if="isAdmin && isActive === true">
+                <button @click="tasks = tasks.filter(t => t.id !== 1)">Filter</button>
+            </template>
+        </div>
+        EOT;
+
+        $this->createView('js_test', $template);
+
+        $data = [
+            'tasks' => [['id' => 1, 'name' => 'Task 1']],
+        ];
+
+        $output = $this->engine->render('js_test', $data);
+
+        // Проверяем, что json_encode отрендерился правильно внутри x-data
+        $this->assertStringContainsString('allTasks: [{"id":1,"name":"Task 1"}]', $output);
+
+        // Проверяем, что амперсанды && не превратились в &amp;&amp;
+        $this->assertStringContainsString('x-if="isAdmin && isActive === true"', $output);
+
+        // Проверяем, что стрелочная функция => осталась целой
+        $this->assertStringContainsString('t => t.id !== 1', $output);
+    }
+
+    public function test_js_frameworks_real_world_compatibility()
+    {
+        // Сценарии, которые ломают парсер Runzy в реальном проекте:
+        // 1. JSON с апострофами во фреймворке (Экран ломает кавычки x-data)
+        // 2. Сравнение с операторами < или > внутри стрелочной функции Alpine.js
+        // 3. Динамический PHP-вывод прямо перед логическим '&&'
+        $template = <<<'EOT'
+        <?php $isAdminFlag = 1; ?>
+        <div x-data="{ 
+            staff: {!! json_encode($employees, JSON_UNESCAPED_UNICODE) !!}, 
+            currentId: {{ $currentId }} 
+        }">
+            {{-- Стрелочная функция с оператором меньше/больше внутри тега --}}
+            <button @click="staff = staff.filter(s => s.age > 18 && s.id !== currentId)">
+                Filter
+            </button>
+
+            {{-- Динамический PHP-вывод вплотную к амперсандам --}}
+            <template x-if="{{ $isAdminFlag }} && parseInt(member.is_active) === 1">
+                <div class="admin-panel">Admin</div>
+            </template>
+        </div>
+        EOT;
+
+        $this->createView('js_real_world_test', $template);
+
+        $data = [
+            'currentId' => 6,
+            // Критично: данные содержат одинарные кавычки/апострофы (O'Connor, ООО 'Вектор')
+            'employees' => [
+                ['id' => 7, 'name' => "Анастасия O'Connor", 'age' => 25]
+            ]
+        ];
+
+        $output = $this->engine->render('js_real_world_test', $data);
+
+        // ТЕСТ 1: Проверяем, что json_encode не разрушил HTML-атрибут из-за кавычки O'Connor
+        $this->assertStringContainsString('staff: [{"id":7,"name":"Анастасия O\'Connor","age":25}]', $output);
+
+        // ТЕСТ 2: Проверяем, что знак ">" в стрелочной функции (age > 18) не был воспринят как закрытие HTML-тега
+        $this->assertStringContainsString('s => s.age > 18 && s.id !== currentId', $output);
+
+        // ТЕСТ 3: Проверяем, что амперсанды после вывода переменной не превратились в &amp;&amp;
+        // Ожидаем чистый JS: x-if="1 && parseInt(member.is_active) === 1"
+        $this->assertStringContainsString('x-if="1 && parseInt(member.is_active) === 1"', $output);
+    }
+
+
+    public function test_template_include_context_isolation()
+    {
+        // 1. Создаем дочерний шаблон (parts/modal_staff_edit.php)
+        // Физически создаем подпапку parts, чтобы шаблонизатор мог найти файл по пути parts/modal_staff_edit.php
+        $partsDir = $this->templateDir . DIRECTORY_SEPARATOR . 'parts';
+        if (!is_dir($partsDir)) {
+            mkdir($partsDir, 0777, true);
+        }
+
+        $modalTemplate = <<<'EOT'
+        <div class="modal">
+            <h3>Редактирование: {{ $member->name }}</h3>
+            <p>Должность: {{ $member->position }}</p>
+        </div>
+        EOT;
+        // Записываем файл в подпапку parts/modal_staff_edit.php
+        file_put_contents($partsDir . DIRECTORY_SEPARATOR . 'modal_staff_edit.php', $modalTemplate);
+
+        // 2. Создаем родительский шаблон (crm/staff_index.php)
+        // Здесь крутится цикл, где переменная ТОЖЕ называется $member
+        $mainTemplate = <<<'EOT'
+        <div class="staff-list">
+            @foreach($staff as $member)
+                <div class="card">{{ $member->name }}</div>
+            @endforeach
+
+            {{-- СЦЕНАРИЙ А: Стандартный @include теперь работает динамически и полностью изолирован! --}}
+            <div id="standard-include">
+                @include('parts.modal_staff_edit', ['member' => $selectedMember])
+            </div>
+
+            {{-- СЦЕНАРИЙ Б: Прямой вызов изолированного метода render --}}
+            <div id="isolated-render">
+                {!! $this->render('parts.modal_staff_edit', ['member' => $selectedMember]) !!}
+            </div>
+        </div>
+        EOT;
+        $this->createView('staff_index_test', $mainTemplate);
+
+        // 3. Готовим синтетические данные
+        $designer = (object)['name' => 'Анастасия', 'position' => 'Дизайнер'];
+        $analyst  = (object)['name' => 'Сергей', 'position' => 'Аналитик'];
+        $owner    = (object)['name' => 'Владелец Компании', 'position' => 'Директор'];
+
+        $data = [
+            'staff'          => [$designer, $analyst], // Переменные для цикла
+            'selectedMember' => $owner                 // То, что МЫ ХОТИМ передать в модалку
+        ];
+
+        // 4. Рендерим страницу
+        $output = $this->engine->render('staff_index_test', $data);
+
+        // --- ПРОВЕРКА СЦЕНАРИЯ Б (Прямой изолированный рендер) ---
+        $this->assertStringContainsString('<h3>Редактирование: Владелец Компании</h3>', $output);
+        $this->assertStringContainsString('<p>Должность: Директор</p>', $output);
+
+        // --- ПРОВЕРКА СЦЕНАРИЯ А (Стандартный @include из коробки) ---
+        // Благодаря динамическому выходу в ядре, RunzyTemplate НЕ затирает $selectedMember элементом из цикла!
+        $this->assertStringContainsString('<div id="standard-include">', $output);
+        $this->assertStringContainsString('<h3>Редактирование: Владелец Компании</h3>', $output); 
+    }
+
+
     public function test_mixed_nested_loops()
     {
         $template = <<<'EOT'
-    @foreach($groups as $group)
-        {{ $group['name'] }}:
-        @forelse($group['items'] as $item)
-            {{ $item }}
-        @empty
-            No items
-        @endforelse
-    @endforeach
-    EOT;
+        @foreach($groups as $group)
+            {{ $group['name'] }}:
+            @forelse($group['items'] as $item)
+                {{ $item }}
+            @empty
+                No items
+            @endforelse
+        @endforeach
+        EOT;
     
         $this->createView('mixed_loops', $template);
     

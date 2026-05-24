@@ -100,6 +100,9 @@ class Template {
         $cacheFile = $this->cacheDir . $safeName . '_' . md5($view) . '.php';
         file_put_contents($cacheFile, $compiledContent);
 
+        // Перед extract создаем массив всех объединенных данных
+        $mergedData = array_merge($this->shared, $data);
+
         ob_start();
         extract(array_merge($this->shared, $data), EXTR_SKIP);
         require $cacheFile;
@@ -237,27 +240,17 @@ class Template {
      */
     protected function compileIncludes($template)
     {
-        // Новая регулярка: ищет имя файла и опционально захватывает всё, что идет после запятой
-        return preg_replace_callback('/@include\s*\(\s*[\'"](.*?)[\'"](?:\s*,\s*(.*?))?\s*\)/i', function ($matches) {
+        // Регулярка ищет @include('имя') или @include('имя', ['data' => $val])
+        return preg_replace_callback('/@include\s*\(\s*[\'"](.*?)[\'"]\s*(?:,\s*(.*?))?\s*\)/is', function ($matches) {
             $viewName = $matches[1];
-            $data = isset($matches[2]) ? $matches[2] : '[]'; // Если данных нет, передаем пустой массив
-            
-            $filePath = $this->templateDir . str_replace('.', '/', $viewName) . '.php';
-            
-            if (!file_exists($filePath)) {
-                return "<!-- RunzyTemplate Error: Include '{$viewName}' not found -->";
-            }
-            
-            $includeContent = file_get_contents($filePath);
-            
-            // Магия: оборачиваем контент инклуда в extract(), чтобы данные стали переменными
-            $compiledContent = "<?php (function(\$data) { extract(\$data); ?> " 
-                . $this->compile($includeContent) 
-                . " <?php })({$data}); ?>";
-            
-            return $compiledContent;
+            // Если переданы локальные переменные (например, ['member' => $selectedMember]), берем их, иначе пустой массив
+            $localData = !empty($matches[2]) ? $matches[2] : '[]';
+
+            // Превращаем в динамический вызов рендера прямо внутри скомпилированного PHP
+            return "<?php echo \$this->render('{$viewName}', array_merge(\$data ?? [], {$localData})); ?>";
         }, $template);
     }
+
 
     /**
      * Делится переменной со всеми шаблонами.
@@ -312,9 +305,9 @@ class Template {
     /**
      * Сырой вывод: {!! $var !!} -> <?php echo $var; ?>
      */
-    protected function compileEchoes($template) {
-        // Используем нежадный поиск (.*?) и флаг s для многострочности
-        return preg_replace('/\{!!\s*(.*?)\s*!!\}/is', '<?php echo $1; ?>', $template);
+    protected function compileEchoes($template)
+    {
+        return preg_replace('/\{!!\s*(.+?)\s*!!\}/s', '<?php echo $1; ?>', $template);
     }
 
     /**
@@ -331,9 +324,9 @@ class Template {
     /**
      * Безопасный вывод: {{ $var }} -> <?php echo $this->e($var); ?>
      */
-    protected function compileEscapedEchoes($template) {
-        // Добавляем $this->e() для безопасности
-        return preg_replace('/\{\{\s*(.*?)\s*\}\}/is', '<?php echo $this->e($1); ?>', $template);
+    protected function compileEscapedEchoes($template)
+    {
+        return preg_replace('/\{\{\s*(.+?)\s*\}\}/s', '<?php echo $this->e($1); ?>', $template);
     }
     
     /**
@@ -349,7 +342,8 @@ class Template {
      */
     protected function compileIf($template)
     {
-        return preg_replace('/@if\s*\((.*)\)/i', '<?php if($1): ?>', $template);
+        // Ищем строго @if как отдельное слово шаблонизатора
+        return preg_replace('/(?<!\w)@if\s*\((.*?)\)/i', '<?php if($1): ?>', $template);
     }
 
     /**
