@@ -17,6 +17,9 @@ RunzyTemplate is an extremely lightweight (18 kB), fast, Standalone, and extensi
 - **AI-Friendly Design**  
   The engine uses a predictable, standardized syntax that is easily understood by LLMs (ChatGPT, Claude). Includes a ready-to-use prompt context for faster AI-assisted development.
 
+- **Output Filters (`|js`)**  
+  Format and escape your data on the fly inside `{{ }}` brackets. Use the `|js` filter to safely pass PHP variables into JavaScript contexts without breaking single quotes or layout syntax.
+
 - **Powerful Template Inheritance**  
   Organize your UI with a robust layout system. Use `@extends` to define your base structure, `@block` to fill it, and `@yield` to display content.
 
@@ -205,6 +208,23 @@ $runzy->setAuthChecker(function() {
     return isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 });
 ```
+### JavaScript Context Escaping (Filters)
+When passing data directly into inline JavaScript or frameworks like Alpine.js/Vue, use the `|js` filter to automatically handle newlines, bullets, and escape quotes safely:
+
+```html
+<div x-data="{ active: false }">
+    <button @click="initTask('{{ $task->text|js }}')">Open Task</button>
+</div>
+```
+
+### Advanced Conditional Logic
+The template parser correctly handles nested parentheses inside `@if` and `@elseif` directives, allowing you to use native PHP functions smoothly:
+
+```html
+@if(empty($tasks))
+    <p>No tasks found in this project.</p>
+@endif
+```
 
 
 ### Conditional Logic (@if, @elseif, @else)
@@ -356,5 +376,7 @@ If you are using AI (ChatGPT, Claude, etc.) to help you write templates or exten
 > - **Partials**: `@include('name')`.
 > - **Asset Stacks**: `@push('name')/@endpush`, `@prepend('name')/@endprepend`, `@stack('name')`.
 > - **Security & Auth**: `@csrf` (inserts hidden input), `@auth`, `@guest`.
+> - **Filters**: Supports filters inside echoes, e.g., `{{ $var|js }}` for JavaScript escaping.
+> - **Advanced Logic**: `@if` handles nested expressions like `@if(empty($tasks))`.
 > - **Customization**: Use `@php ... @endphp` for raw code and `$engine->directive(name, callback)` for custom aliases.
 > Please generate code or templates strictly according to this API.
